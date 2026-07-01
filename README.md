@@ -100,22 +100,25 @@ python -m kugua.api_server --port 5000
 
 ## 架构
 
+kugua 是 Sidecar，不是 Agent 框架。它坐在你的 Agent 旁边，每次工具调用前接受检查。
+
 ```
-你的 Agent (LangGraph/AutoGen/...)     ← 你已有的代码
-        │ 每次工具调用前
-        ▼
-┌─ kugua Sidecar (只读观察者) ─────────────┐
-│  Guardian ── 四层认知监护                  │
-│  StatesMachine ── P0-P4 状态机 + Saga     │
-│  SafetyManager ── 信任梯度 + Kill Switch   │
-│  DoubleLoop ── 双环学习 (修改规则本身)      │
-│  Mobius ── 五级连续修正谱                  │
-│  CriticalSlowing ── 崩塌预警               │
-│  KnowledgeBase ── L0-L3 证据层级           │
-│  FreshObserver ── 独立盲审 (无上下文污染)   │
-├───────────────────────────────────────────┤
-│  MCP (8工具) · REST (7端点) · SDK (3行)   │
-└───────────────────────────────────────────┘
+你的 Agent (LangGraph / AutoGen / CrewAI)
+    │
+    │  POST /guardian/check
+    ▼
+kugua Sidecar (只读, 不修改 Agent 状态)
+    │
+    ├─ Guardian         四层认知监护
+    ├─ StatesMachine    P0-P4 状态机 + Saga 补偿
+    ├─ SafetyManager    五级信任梯度 + Kill Switch
+    ├─ DoubleLoop       双环学习 (修改规则本身)
+    ├─ Mobius           五级连续修正谱
+    ├─ CriticalSlowing  临界慢化崩塌预警
+    ├─ KnowledgeBase    L0-L3 证据层级 + BM25
+    ├─ FreshObserver    独立盲审 (无上下文污染)
+    │
+    └─ 集成: MCP / REST / Python SDK
 ```
 
 ## 安装
