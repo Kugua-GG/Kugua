@@ -1,11 +1,13 @@
 # 🍈 kugua — AI Agent 认知内核 v0.3.0
 
-> **为 LLM Agent 装上免疫系统。** 不是另一个 Agent 框架，而是一个无侵入的 Sidecar 认知监护层——在你的 Agent 每次决策前检查安全性、置信度和系统健康。
+> **为 LLM Agent 装上免疫系统。** 不是另一个 Agent 框架，而是一个无侵入的 Sidecar 认知监护层。
+
+> ⚠️ **这是一个研究原型 (research prototype)，不是生产级产品。** 公开发布用于学术复现和同行审查。不承诺维护、不提供 support SLA、不保证 API 稳定性。如果你觉得有用，欢迎 fork 和研究；如果你提 Issue，我可能回复也可能不回复。
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-200+-green)](tests/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-orange)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.0-purple)](kugua-code/kugua/__init__.py)
+[![Status](https://img.shields.io/badge/status-research%20prototype-lightgrey)](README.md)
 
 ## 为什么需要 kugua
 
