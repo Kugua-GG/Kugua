@@ -1,0 +1,25 @@
+{
+  "n_bare": 40,
+  "n_kugua": 40,
+  "escalation_speed": {
+    "L0_SURFACE_cycle": 2,
+    "L0_SURFACE_count": 6,
+    "L1_LOGIC_cycle": 2,
+    "L1_LOGIC_count": 6,
+    "L2_ARCH_cycle": 0,
+    "L2_ARCH_count": 4,
+    "arch_vs_surface_ratio": 0.67,
+    "arch_faster": true,
+    "interpretation": "架构错误在 4 次出现(周期0)后触发双环, 表面错误需要 6 次(周期2)"
+  },
+  "fix_rate": {
+    "bare": 0.675,
+    "kugua": 1.0
+  },
+  "double_loop_rate": 0.725,
+  "kb_growth": {
+    "start": 7,
+    "end": 12,
+    "new_entries": 5
+  }
+}

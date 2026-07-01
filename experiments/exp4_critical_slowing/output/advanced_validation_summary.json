@@ -1,0 +1,41 @@
+{
+  "by_mode": {
+    "gradual": {
+      "count": 3,
+      "adaptive": {
+        "lead_mean": 127.7,
+        "far_mean": 0.299,
+        "detected": 3
+      },
+      "fixed": {
+        "far_mean": 0.43
+      },
+      "far_reduction_pct": 30.5
+    },
+    "step": {
+      "count": 3,
+      "adaptive": {
+        "lead_mean": 160,
+        "far_mean": 0.0109,
+        "detected": 3
+      },
+      "fixed": {
+        "far_mean": 0.43
+      },
+      "far_reduction_pct": 97.5
+    },
+    "oscillatory": {
+      "count": 3,
+      "adaptive": {
+        "lead_mean": 55,
+        "far_mean": 0.0037,
+        "detected": 3
+      },
+      "fixed": {
+        "far_mean": 0.43
+      },
+      "far_reduction_pct": 99.1
+    }
+  },
+  "total_trials": 9
+}

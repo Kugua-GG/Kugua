@@ -1,0 +1,51 @@
+{
+  "config": {
+    "steps": 200,
+    "tipping": 140,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "noise_levels": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "min_csd_samples": 8
+  },
+  "by_noise": {
+    "low": {
+      "trials": 5,
+      "lead_time_mean": 90,
+      "lead_time_sd": 39.4,
+      "lead_pct_mean": 45.0,
+      "false_alarm_rate_mean": 0.4599,
+      "false_alarm_rate_sd": 0.0331,
+      "miss_rate": 0.0,
+      "avg_critical_count": 117
+    },
+    "medium": {
+      "trials": 5,
+      "lead_time_mean": 85.8,
+      "lead_time_sd": 44.8,
+      "lead_pct_mean": 42.9,
+      "false_alarm_rate_mean": 0.4277,
+      "false_alarm_rate_sd": 0.0594,
+      "miss_rate": 0.0,
+      "avg_critical_count": 111
+    },
+    "high": {
+      "trials": 5,
+      "lead_time_mean": 76.8,
+      "lead_time_sd": 46.5,
+      "lead_pct_mean": 38.4,
+      "false_alarm_rate_mean": 0.3389,
+      "false_alarm_rate_sd": 0.0677,
+      "miss_rate": 0.0,
+      "avg_critical_count": 98.6
+    }
+  }
+}

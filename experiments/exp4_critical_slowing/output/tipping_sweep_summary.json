@@ -1,0 +1,38 @@
+{
+  "total": 30,
+  "tipping_20pct": {
+    "n": 6,
+    "detected": "6/6",
+    "zero_lag_rate": 0.67,
+    "lead_mean": "N/A",
+    "far_mean": 0.0
+  },
+  "tipping_40pct": {
+    "n": 6,
+    "detected": "6/6",
+    "zero_lag_rate": 0.0,
+    "lead_mean": "N/A",
+    "far_mean": 0.0
+  },
+  "tipping_60pct": {
+    "n": 6,
+    "detected": "6/6",
+    "zero_lag_rate": 0.33,
+    "lead_mean": "N/A",
+    "far_mean": 0.0
+  },
+  "tipping_80pct": {
+    "n": 6,
+    "detected": "6/6",
+    "zero_lag_rate": 0.0,
+    "lead_mean": "N/A",
+    "far_mean": 0.0
+  },
+  "no_collapse": {
+    "n": 6,
+    "detected": "0/6",
+    "zero_lag_rate": "N/A",
+    "lead_mean": "N/A",
+    "far_mean": 0.0
+  }
+}

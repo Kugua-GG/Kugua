@@ -1,0 +1,69 @@
+{
+  "phase": "P0",
+  "subphase": "",
+  "intent_anchor": "Test task",
+  "task_dag": [
+    {
+      "task": "do something"
+    }
+  ],
+  "error_count": 0,
+  "retry_count": 0,
+  "review_fail_count": 0,
+  "worker_slots": [
+    {
+      "slot_id": 0,
+      "occupied": false,
+      "subtask_id": "",
+      "acquired_at": ""
+    },
+    {
+      "slot_id": 1,
+      "occupied": false,
+      "subtask_id": "",
+      "acquired_at": ""
+    },
+    {
+      "slot_id": 2,
+      "occupied": false,
+      "subtask_id": "",
+      "acquired_at": ""
+    },
+    {
+      "slot_id": 3,
+      "occupied": false,
+      "subtask_id": "",
+      "acquired_at": ""
+    }
+  ],
+  "phase_jumps": 0,
+  "phase_rollbacks": 1,
+  "transition_history": [
+    {
+      "from": "P0",
+      "to": "P1",
+      "subphase_before": "",
+      "subphase_after": "",
+      "reason": "start planning",
+      "timestamp": "2026-06-29T05:47:45.177176+00:00"
+    },
+    {
+      "from": "P1",
+      "to": "P2",
+      "subphase_before": "",
+      "subphase_after": "",
+      "reason": "start executing",
+      "timestamp": "2026-06-29T05:47:45.178794+00:00"
+    },
+    {
+      "from": "P2",
+      "to": "P0",
+      "subphase_before": "",
+      "subphase_after": "",
+      "reason": "reset for align test",
+      "timestamp": "2026-06-29T05:47:45.180398+00:00"
+    }
+  ],
+  "recovery_count": 0,
+  "updated_at": "2026-06-29T05:47:45.180407+00:00"
+}

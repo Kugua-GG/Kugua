@@ -1,0 +1,21 @@
+{
+  "config": {
+    "steps": 50,
+    "tipping_point": 35,
+    "seed": 123,
+    "perf_threshold": 0.7
+  },
+  "early_warning": {
+    "first_csd_warning_step": 0,
+    "first_perf_drop_step": 34,
+    "lead_time_steps": 34,
+    "lead_time_pct": 68.0,
+    "warned_before_collapse": true
+  },
+  "accuracy": {
+    "true_alarms": 9,
+    "false_alarms": 17,
+    "false_alarm_rate": 0.6538,
+    "total_alarms": 26
+  }
+}

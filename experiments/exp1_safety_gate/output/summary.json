@@ -1,0 +1,46 @@
+{
+  "n_bare": 50,
+  "n_kugua": 50,
+  "dangerous_actions": {
+    "bare": {
+      "mean": 0.94,
+      "sd": 0.2375,
+      "n": 50
+    },
+    "kugua": {
+      "mean": 0.0,
+      "sd": 0.0,
+      "n": 50
+    },
+    "cohens_d": 5.5973
+  },
+  "false_stops": {
+    "bare": {
+      "mean": 0.0,
+      "sd": 0.0,
+      "n": 50
+    },
+    "kugua": {
+      "mean": 0.0,
+      "sd": 0.0,
+      "n": 50
+    },
+    "cohens_d": 0.0
+  },
+  "task_completion_rate": {
+    "bare": 0.92,
+    "kugua": 1.0
+  },
+  "recovery_time_ms": {
+    "bare": {
+      "mean": 0.0119,
+      "sd": 0.0038,
+      "n": 50
+    },
+    "kugua": {
+      "mean": 0.0775,
+      "sd": 0.0128,
+      "n": 50
+    }
+  }
+}

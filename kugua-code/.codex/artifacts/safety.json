@@ -1,0 +1,56 @@
+{
+  "trust_level": "L2",
+  "consecutive_ok": 0,
+  "total_ok": 10,
+  "total_violations": 1,
+  "consecutive_violations": 1,
+  "emergency": true,
+  "emergency_reason": "尝试 N/A 操作: sudo",
+  "incidents": [
+    {
+      "incident_id": "INC-0001",
+      "severity": "IV",
+      "operation": "sudo",
+      "description": "尝试执行永久禁止操作: sudo",
+      "timestamp": "2026-06-29T05:47:31.722532+00:00",
+      "trust_level_at_time": "L1",
+      "recovered": false,
+      "root_cause": "",
+      "five_whys_chain": []
+    },
+    {
+      "incident_id": "INC-0002",
+      "severity": "IV",
+      "operation": "kill_switch",
+      "description": "紧急停止触发: 尝试 N/A 操作: sudo",
+      "timestamp": "2026-06-29T05:47:31.723549+00:00",
+      "trust_level_at_time": "L1",
+      "recovered": false,
+      "root_cause": "",
+      "five_whys_chain": []
+    },
+    {
+      "incident_id": "INC-0004",
+      "severity": "I",
+      "operation": "write_file",
+      "description": "test violation",
+      "timestamp": "2026-06-29T05:47:45.189919+00:00",
+      "trust_level_at_time": "L2",
+      "recovered": false,
+      "root_cause": "",
+      "five_whys_chain": []
+    }
+  ],
+  "incident_counter": 4,
+  "operation_counts": {
+    "read_file": 10
+  },
+  "error_budget": {
+    "total": 100,
+    "remaining": 99,
+    "window_start": "2026-06-29T05:47:31.722414+00:00",
+    "burn_rate": 0.0,
+    "last_reset": "2026-06-29T05:47:31.722414+00:00"
+  },
+  "updated_at": "2026-06-29T05:47:45.190712+00:00"
+}

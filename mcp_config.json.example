@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "llamaindex": {
+      "command": "python",
+      "args": ["path/to/llamaindex-mcp-server/server.py"],
+      "env": {}
+    },
+    "kugua": {
+      "command": "python",
+      "args": ["path/to/kugua/mcp/server.py"],
+      "env": {
+        "KUGUA_ARTIFACTS_DIR": "~/.claude/.codex/artifacts",
+        "KUGUA_CODE_DIR": "path/to/kugua-code",
+        "DEEPSEEK_API_KEY": "sk-your-deepseek-key",
+        "DEEPSEEK_API_URL": "https://api.deepseek.com/v1/chat/completions",
+        "DEEPSEEK_MODEL": "deepseek-v4-pro",
+        "MIMO_API_KEY_0": "sk-your-mimo-key",
+        "MIMO_API_URL": "https://api.xiaomimimo.com/v1/chat/completions",
+        "MIMO_MODEL": "mimo-v2-flash"
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "n_bare": 15,
+  "n_kugua": 15,
+  "hallucination_rate": {
+    "bare": 0.5333,
+    "kugua": 0.1333,
+    "reduction_pct": 75.0,
+    "cohens_d": 4.0
+  },
+  "refusal_rate": {
+    "bare": 0.1333,
+    "kugua": 0.4667
+  },
+  "citation_accuracy": {
+    "kugua": 0.4615
+  },
+  "confidence": {
+    "bare_mean": 0.7667,
+    "kugua_mean": 1.0021
+  }
+}

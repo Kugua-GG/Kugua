@@ -1,0 +1,38 @@
+{
+  "L0": {
+    "system_prompt": "Test system prompt",
+    "tools_schema": [],
+    "safety_rules": [],
+    "frozen": true,
+    "frozen_at": "2026-06-29T05:47:31.724801+00:00"
+  },
+  "L1": {
+    "intent_anchor": "Test intent",
+    "task_dag": [],
+    "plan_summary": "",
+    "frozen": true,
+    "frozen_at": "2026-06-29T05:47:31.726203+00:00",
+    "version": 1
+  },
+  "L2": {
+    "entries": [
+      {
+        "id": "L2-000001",
+        "role": "user",
+        "content": "Hello, world!",
+        "summary": "Hello, world!",
+        "metadata": {},
+        "timestamp": "2026-06-29T05:47:31.726870+00:00"
+      }
+    ],
+    "cache_point": 0
+  },
+  "entry_counter": 1,
+  "stats": {
+    "assemble_count": 0,
+    "replan_count": 0,
+    "edit_count": 0,
+    "delete_count": 0
+  },
+  "updated_at": "2026-06-29T05:47:31.726882+00:00"
+}
