@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 # 添加 kugua-code 到路径
-sys.path.insert(0, r"C:\Users\Administrator\Desktop\kugua-code")
+sys.path.insert(0, r"C:\Users\Administrator\Desktop\kugua-v0.2.1\kugua-code")
 
 from kugua.config import KuguaConfig
 from kugua.states import StatesMachine, PhaseTransitionError, AlignResult, VALID_PHASES, PHASE_ORDER

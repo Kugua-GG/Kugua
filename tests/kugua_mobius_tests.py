@@ -4,7 +4,7 @@ kugua Mobius module tests — 10 tasks
 import sys, math, os, tempfile, shutil
 from pathlib import Path
 
-sys.path.insert(0, r"C:\Users\Administrator\Desktop\kugua-code")
+sys.path.insert(0, r"C:\Users\Administrator\Desktop\kugua-v0.2.1\kugua-code")
 
 from kugua.mobius import (
     MobiusController, CorrectionSpectrum, CorrectionBias, TwistPoint

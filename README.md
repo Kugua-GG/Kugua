@@ -28,6 +28,55 @@ LLM Agent 有三个根本问题：
 | 双环学习 | 架构/表面升级比 | — | **0.67×** | — |
 | 临界慢化 | 崩塌前预警 | — | **38-68%提前** | — |
 
+## 它到底做了什么
+
+kugua 的每个模块都不是简单的"if-else 检查"。
+
+### SafetyManager — 信任随时间变化的活系统
+
+不是静态的 `{操作: 允许/禁止}` 查表。系统初始 L2 信任，连续安全操作**自动升级**到 L3→L4。每次高风险操作消耗 ErrorBudget，预算耗尽**自动降级**到 L1（只读）。Kill Switch 有三条触发链——区分**权限拒绝**（计入熔断）和**预算不足**（加权 80%，不计入），根据当前 P0-P4 阶段动态调整阈值。校准参数来自 130,000 次混沌试验的 ROC 扫描，不是拍脑袋的数字。
+
+### StatesMachine — 状态转换不是"改个字段"
+
+`transition()` 内部是三层：**前置条件验证 → 执行转换 → 后置条件验证**。后置失败则回退到转换前状态。P3 审查失败不是"记录一下"，而是 **Saga 补偿事务回退**——逆序撤销 P2→P1，执行每个阶段的补偿方法。关键阶段自动保存检查点，崩溃后从最近合法检查点恢复。同一阶段连续 3 次无法推进 → `PhaseStagnationGuard` 发出 replan 信号。
+
+### DoubleLoop + Mobius — 不是"重试"，是"改规则"
+
+单环学习 = 这次错了，重试。双环学习 = **这条规则有问题，换掉它**。六阶段流水线：5-Whys 根因分析 → 规则修改提案 → FreshObserver 独立盲审 → 3 审查者投票 → 验证 → 提交/回滚。Mobius 不是二进制的"触发/不触发"，而是一个从 L0_HINT（轻提示）到 L4_COMMIT（修改规则）的**连续谱**——偏差积累、时间衰减、置信度加权，像弹簧慢慢压紧，达到阈值才释放。实验验证：架构错误仅需 4 次出现即触发双环，表面错误需要 6 次——谱系正确区分了严重性。
+
+### CriticalSlowing — 不是"性能监控"，是"崩塌预警"
+
+灵感来自物理学的**相变理论**。系统在崩溃前，恢复时间会单调递增且方差增大。Mann-Kendall 检验检测这种趋势。两阶段检测器（z-score 筛选 + MK 确认）在 200 步长期运行中**提前 38-68% 发出预警**，无崩塌误报率 0%。三种崩塌模式（渐进式、阶跃式、振荡式）均可检测。纯 Python 自实现 erf 近似，零外部依赖。
+
+### Guardian — 四层管道式监护
+
+```
+置信度 < 0.7 → retry（请求重新生成）
+  ↓ 通过
+临界慢化信号 → slow_down（建议切换策略）
+  ↓ 通过
+权限门控 → block（直接阻断）
+  ↓ 通过
+FreshObserver 盲审 → 独立 LLM 判断内容安全性
+```
+
+每一层可独立开关。所以同一个 Guardian 可以配置给代码审查 Agent（全开）、命令行工具（只开权限）、RAG 幻觉检测（只开置信度）。
+
+### KnowledgeBase — 知识不是平等的
+
+L0-L3 证据层级：L3 公理（10+ 上下文验证 + 反例测试）**不可降级**。L1 条目失败 5 次且未被使用 → 自动垃圾回收。双阈值逻辑冲突检测（否定词计数 + 关键词重叠）。BM25 Okapi 倒排索引，中英混合三层分词。图知识库支持 BFS 联想检索和图拉普拉斯置信度扩散。
+
+### 这些不是"我觉得有用"——是可复现的对照实验
+
+| 实验 | 指标 | 裸 Agent | kugua | Cohen's d |
+|------|------|---------|-------|-----------|
+| 安全门控 | 危险动作/次 | 0.94 | **0.0** | 4.97 |
+| 幻觉免疫 | 幻觉率 | 53% | **13%** | 4.0 |
+| 双环学习 | 架构/表面升级比 | — | **0.67×** | — |
+| 临界慢化 | 崩塌前预警 | — | **38-68%提前** | — |
+
+对抗测试：4/4 攻击模式 100% 拦截。混沌工程：30 次试验零漏报。
+
 ## 3 分钟接入
 
 ```python
@@ -35,51 +84,38 @@ from kugua.client import GuardianClient
 
 gc = GuardianClient(confidence_threshold=0.7)
 
-# 每次 Agent 工具调用前
 decision = gc.check(prompt=agent_output, action="write_file", confidence=0.85)
-
 if decision.allowed:
     execute()
 else:
-    print(f"Blocked: {decision.reason}")  # 自动包含建议
+    print(f"Blocked: {decision.reason}")
 ```
 
-或作为 Sidecar HTTP 服务：
+或作为 Sidecar HTTP：
 
 ```bash
 python -m kugua.api_server --port 5000
-```
-
-```python
-# LangGraph / AutoGen / CrewAI 调用
-import requests
-r = requests.post("http://localhost:5000/api/guardian/check", json={
-    "operation": "write_file", "confidence": 0.85
-})
-if not r.json()["intervene"]:
-    execute()
+# LangGraph / AutoGen / CrewAI → POST /api/guardian/check
 ```
 
 ## 架构
 
 ```
-┌─────────────────────────────────────────┐
-│  Python 层 (LLM编排 + 认知策略)           │
-│                                         │
-│  Guardian    — 认知监护 (4层检查)         │
-│  StatesMachine — δ(S,E)→S' 状态机       │
-│  SafetyManager — 信任梯度 + Kill Switch  │
-│  DoubleLoop  — 双环学习 (修改规则本身)     │
-│  Mobius      — 五级连续修正谱            │
-│  CriticalSlowing — 临界慢化预警          │
-│  KnowledgeBase — L0-L3 证据层级          │
-│  FreshObserver — 独立盲审 (无上下文污染)   │
-├─────────────────────────────────────────┤
-│  集成层                                  │
-│  MCP Server (8 tools)                   │
-│  REST API (7 endpoints)                 │
-│  GuardianClient SDK (3行接入)            │
-└─────────────────────────────────────────┘
+你的 Agent (LangGraph/AutoGen/...)     ← 你已有的代码
+        │ 每次工具调用前
+        ▼
+┌─ kugua Sidecar (只读观察者) ─────────────┐
+│  Guardian ── 四层认知监护                  │
+│  StatesMachine ── P0-P4 状态机 + Saga     │
+│  SafetyManager ── 信任梯度 + Kill Switch   │
+│  DoubleLoop ── 双环学习 (修改规则本身)      │
+│  Mobius ── 五级连续修正谱                  │
+│  CriticalSlowing ── 崩塌预警               │
+│  KnowledgeBase ── L0-L3 证据层级           │
+│  FreshObserver ── 独立盲审 (无上下文污染)   │
+├───────────────────────────────────────────┤
+│  MCP (8工具) · REST (7端点) · SDK (3行)   │
+└───────────────────────────────────────────┘
 ```
 
 ## 安装
