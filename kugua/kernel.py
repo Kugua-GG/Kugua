@@ -202,6 +202,9 @@ class KuguaKernel:
             knowledge_base=self.kb,
             double_loop=self.double_loop,
             mobius=self.mobius,
+            context=self.context,
+            safety=self.safety,
+            stagnation=self.executor.stagnation if self.executor else None,
         )
 
     # ═══════════════════════════════════════════════════════════
