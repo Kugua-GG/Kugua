@@ -97,7 +97,7 @@ DEFAULT_PROVIDERS = [
     {
         "name": "mimo",
         "api_base": "https://api.xiaomimimo.com/v1",
-        "models": ["mimo-v2-flash", "mimo-v2-pro"],
+        "models": ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash"],
         "api_key_env": "MIMO_API_KEY",
     },
     {

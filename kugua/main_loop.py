@@ -329,6 +329,11 @@ class MainLoop:
             return PhaseReport("P2", "completed", "No tasks to execute")
 
         if not self.executor:
+            try:
+                if self.states:
+                    self._state = self.states.transition(self._state, "P2_executed")
+            except Exception:
+                pass
             return PhaseReport("P2", "skipped", "No executor configured")
 
         results = []
@@ -451,6 +456,11 @@ class MainLoop:
         Reflexion-inspired: failures → RCA → KB modification.
         """
         if not results:
+            try:
+                if self.states:
+                    self._state = self.states.transition(self._state, "P3_reviewed")
+            except Exception:
+                pass
             try:
                 if self.states:
                     self._state = self.states.transition(self._state, "P3_reviewed")

@@ -53,6 +53,6 @@ class KuguaConfig:
             cfg.providers.append({
                 "name": "mimo",
                 "api_base": os.getenv("MIMO_API_BASE", "https://api.xiaomimimo.com/v1"),
-                "api_key": mimo_key, "models": ["mimo-v2-flash", "mimo-v2-pro"],
+                "api_key": mimo_key, "models": ["mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-flash"],
             })
         return cfg
