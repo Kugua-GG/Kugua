@@ -26,6 +26,10 @@ Homepage = "https://github.com/kugua-code/kugua-core"
 Repository = "https://github.com/kugua-code/kugua-core.git"
 
 [project.scripts]
+kugua-demo = "cli.demo:main"
+kugua-top = "cli.top:main"
+kugua-init = "cli.init:main"
+kugua-serve = "cli.serve:main"
 kugua-worker = "cli.worker:main"
 kugua-checker = "cli.checker:main"
 
