@@ -1190,6 +1190,250 @@ class KnowledgeBase:
             "needs_metabolism": by_level["L1"] > 0 or by_status["challenged"] > 0,
         }
 
+    # ---- 知识蒸馏 (v0.3.1) ------------------------------------------------------
+    # CompactionProcess — periodic LLM-driven knowledge distillation.
+    # Groups recent low-level experiences (L0/L1) into clusters,
+    # uses LLM to summarize each cluster into higher-dimension principles (L3/L4),
+    # then prunes redundant source entries to prevent knowledge base bloat.
+    #
+    # Reference: Hinton et al. (2015) — Distilling the Knowledge in a Neural Network;
+    #            WSCL (2024) — Wake-Sleep Consolidated Learning (dream phase);
+    #            On-Policy Distillation (DeepMind, 2024) — learning from self-mistakes.
+
+    _interaction_count: int = 0
+    _last_compaction_at: int = 0
+
+    @property
+    def interaction_count(self) -> int:
+        return self._interaction_count
+
+    def tick_interaction(self) -> None:
+        """Increment the interaction counter. Call after each task execution.
+
+        Used to determine when to trigger periodic compaction.
+        """
+        self._interaction_count += 1
+
+    def should_compact(self, interval: int = 1000) -> bool:
+        """Check if enough interactions have passed since last compaction."""
+        return (self._interaction_count - self._last_compaction_at) >= interval
+
+    def compact(
+        self,
+        llm_client: Any = None,
+        min_level: str = "L1",
+        max_entries_per_cluster: int = 20,
+    ) -> Dict[str, Any]:
+        """Run the full knowledge distillation compaction cycle.
+
+        Phases:
+          1. CLUSTER: Group L0/L1 entries by semantic similarity.
+          2. DISTILL: Use LLM to summarize each cluster into a principle.
+          3. PROMOTE: Add distillate as L3 entry.
+          4. PRUNE: Archive source L0/L1 entries (soft-delete, not hard-delete).
+
+        Args:
+            llm_client: LLM client for distillation. If None, uses heuristic extraction.
+            min_level: Minimum level of entries to consider for compaction.
+            max_entries_per_cluster: Max entries per distillation batch.
+
+        Returns:
+            Dict with compaction statistics.
+        """
+        stats = {
+            "clusters_found": 0,
+            "entries_distilled": 0,
+            "principles_generated": 0,
+            "entries_pruned": 0,
+            "errors": 0,
+        }
+
+        # ── Phase 1: CLUSTER ──
+        candidates = [
+            e for e in self._entries.values()
+            if e.level in ("L0", "L1") and e.status == "active" and e.usage_count >= 2
+        ]
+        if len(candidates) < 3:
+            return {**stats, "reason": "insufficient candidates (< 3)"}
+
+        clusters = self._cluster_by_tags(candidates)
+        # If no tags, cluster by content similarity (simple keyword overlap)
+        if not clusters:
+            clusters = self._cluster_by_content_similarity(candidates)
+
+        # Filter: only process clusters with 3+ entries (prevent fragmentation)
+        clusters = {k: v for k, v in clusters.items() if len(v) >= 3}
+        stats["clusters_found"] = len(clusters)
+
+        if not clusters:
+            return {**stats, "reason": "no clusters with >= 3 entries"}
+
+        # ── Phase 2: DISTILL ──
+        for cluster_id, entries in clusters.items():
+            if len(entries) < 3:
+                continue
+            batch = entries[:max_entries_per_cluster]
+            stats["entries_distilled"] += len(batch)
+
+            if llm_client and hasattr(llm_client, "chat"):
+                principle = self._distill_with_llm(batch, llm_client)
+            else:
+                principle = self._distill_heuristic(batch)
+
+            if principle:
+                # ── Phase 3: PROMOTE ──
+                principle_key = f"distilled_{cluster_id}_{int(time.time())}"
+                principle_entry = KBEntry(
+                    key=principle_key,
+                    content=principle,
+                    level="L3",
+                    confidence=0.7,  # distilled knowledge starts at moderate confidence
+                    verified_in=[],
+                    tags=list(set(t for e in batch for t in (e.tags or []))),
+                    usage_count=0,
+                )
+                self.add(principle_entry)
+                stats["principles_generated"] += 1
+
+                # ── Phase 4: PRUNE ──
+                for e in batch:
+                    e.status = "deprecated"
+                    e.confidence = max(0.1, e.confidence - 0.2)
+                stats["entries_pruned"] += len(batch)
+
+        self._last_compaction_at = self._interaction_count
+        self._dirty = True
+        return stats
+
+    def _cluster_by_tags(self, entries: List[Any]) -> Dict[str, List[Any]]:
+        """Group entries by shared tags."""
+        clusters: Dict[str, List[Any]] = {}
+        for e in entries:
+            for tag in (e.tags or []):
+                if tag:
+                    clusters.setdefault(tag, []).append(e)
+        return clusters
+
+    def _cluster_by_content_similarity(
+        self, entries: List[Any], num_clusters: int = 5
+    ) -> Dict[str, List[Any]]:
+        """Simple keyword-overlap clustering when tags are unavailable.
+
+        Groups entries whose content shares at least 2 significant words.
+        """
+        import re
+
+        clusters: Dict[str, List[Any]] = {}
+        processed = set()
+
+        for i, e1 in enumerate(entries):
+            if e1.key in processed:
+                continue
+            words1 = set(re.findall(r"\w{3,}", (e1.content or "").lower()))
+            if len(words1) < 3:
+                continue
+
+            cluster = [e1]
+            processed.add(e1.key)
+
+            for j, e2 in enumerate(entries):
+                if i >= j or e2.key in processed:
+                    continue
+                words2 = set(re.findall(r"\w{3,}", (e2.content or "").lower()))
+                if len(words2) < 3:
+                    continue
+                overlap = words1 & words2
+                if len(overlap) >= 2:
+                    cluster.append(e2)
+                    processed.add(e2.key)
+
+            if len(cluster) >= 2:
+                seed_word = sorted(words1, key=len, reverse=True)[:2]
+                cluster_id = "_".join(seed_word)
+                clusters[cluster_id] = cluster
+
+        return clusters
+
+    def _distill_with_llm(
+        self, entries: List[Any], llm_client: Any
+    ) -> str:
+        """Use LLM to summarize a cluster of entries into a principle.
+
+        The prompt asks the LLM to:
+          1. Identify the common pattern across all entries
+          2. Abstract it to a governance-level principle
+          3. State it as an actionable rule
+        """
+        entries_text = "\n\n---\n\n".join(
+            f"[{e.key}] (used {e.usage_count}x, confidence={e.confidence:.1f})\n{e.content[:300]}"
+            for e in entries
+        )
+        prompt = (
+            "You are a knowledge distillation engine. Given the following "
+            "low-level observations, extract a HIGHER-DIMENSION GOVERNANCE PRINCIPLE "
+            "that captures the common pattern across all of them.\n\n"
+            "Rules:\n"
+            "1. The principle should be more abstract than any single observation.\n"
+            "2. It should be actionable — someone reading it should know what to do.\n"
+            "3. It should prevent the errors observed in the source entries.\n"
+            "4. Output ONLY the principle text, no markdown, no commentary.\n\n"
+            f"SOURCE OBSERVATIONS:\n{entries_text}\n\n"
+            "GOVERNANCE PRINCIPLE:"
+        )
+        try:
+            resp = llm_client.chat(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You distill concrete observations into abstract governance principles.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_tokens=512,
+            )
+            content = resp.get("content", "") if isinstance(resp, dict) else getattr(resp, "content", "")
+            return content.strip()[:1000] if content else ""
+        except Exception:
+            return ""
+
+    def _distill_heuristic(self, entries: List[Any]) -> str:
+        """Heuristic distillation without LLM — extract common keywords and patterns.
+
+        Used as fallback when no LLM client is available.
+        """
+        import re
+
+        all_words: Dict[str, int] = {}
+        all_tags: List[str] = []
+
+        for e in entries:
+            words = re.findall(r"\w{3,}", (e.content or "").lower())
+            for w in words:
+                if w not in ("the", "and", "for", "with", "that", "this", "from", "have"):
+                    all_words[w] = all_words.get(w, 0) + 1
+            if e.tags:
+                all_tags.extend(e.tags)
+
+        # Top keywords
+        top_words = sorted(all_words.items(), key=lambda x: x[1], reverse=True)[:10]
+        keywords = [w for w, c in top_words if c >= 2]
+
+        # Most common tag
+        tag_counts: Dict[str, int] = {}
+        for t in all_tags:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+        top_tag = max(tag_counts, key=tag_counts.get) if tag_counts else "general"
+
+        return (
+            f"[Distilled Principle — {top_tag}]\n"
+            f"Based on {len(entries)} observations in domain '{top_tag}'. "
+            f"Key patterns: {', '.join(keywords[:5])}. "
+            f"Rule: When encountering tasks related to {top_tag}, apply the "
+            f"following learned constraint: verify {keywords[0] if keywords else 'relevant conditions'} "
+            f"before proceeding. Source: {len(entries)} empirical observations."
+        )
+
     # ---- 持久化 flush ----------------------------------------------------------
 
     def flush(self):

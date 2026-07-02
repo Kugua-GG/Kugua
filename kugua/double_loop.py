@@ -902,6 +902,11 @@ class DoubleLoopExecutor:
             except Exception:
                 pass
 
+        # Record version for traceability and rollback
+        commit_hash = self._record_version(event)
+        if commit_hash:
+            event.audit_result["commit_hash"] = commit_hash
+
         return event
 
     def _rollback(self, event: DoubleLoopEvent) -> DoubleLoopEvent:
@@ -954,6 +959,68 @@ class DoubleLoopExecutor:
                     pass
         except Exception:
             pass
+
+    # ── versioning ───────────────────────────────────────────
+
+    def _record_version(self, event: DoubleLoopEvent) -> Optional[str]:
+        """Record a versioned commit when a DoubleLoop modification is committed.
+
+        Creates a KnowledgeCommit in the version graph for traceability and rollback.
+        Returns the commit hash, or None if versioning is unavailable.
+        """
+        try:
+            from kugua.versioning import KnowledgeCommit, VersionGraph
+
+            # Initialize version graph lazily
+            if not hasattr(self, '_version_graph'):
+                artifacts = getattr(self, 'artifacts_dir', None) or Path(".")
+                self._version_graph = VersionGraph(artifacts_dir=artifacts)
+
+            commit = KnowledgeCommit(
+                gv_id=event.gv_id,
+                diff_before=event.gv_content_before,
+                diff_after=event.gv_content_after,
+                reason=event.modification_reason,
+                five_whys=event.five_whys_chain,
+                audit_result=event.audit_result,
+                message=f"DoubleLoop: {event.error_type} fix for {event.gv_id}",
+                tags=[event.error_type, event.phase],
+            )
+            return self._version_graph.commit(commit)
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        return None
+
+    def get_version_history(self, gv_id: str) -> list:
+        """Get version history for a governance variable.
+
+        Returns list of KnowledgeCommit dicts for this gv_id.
+        Requires _record_version to have been called at least once.
+        """
+        if not hasattr(self, '_version_graph'):
+            return []
+        return [c.to_dict() for c in self._version_graph.log(gv_id)]
+
+    def rollback_gv(self, gv_id: str, target_hash: str) -> Optional[dict]:
+        """Roll back a governance variable to a specific historical version.
+
+        Args:
+            gv_id: The governance variable to roll back.
+            target_hash: The commit hash to revert to.
+
+        Returns:
+            The rollback commit dict, or None if rollback failed.
+        """
+        if not hasattr(self, '_version_graph'):
+            return None
+        commit = self._version_graph.rollback(gv_id, target_hash)
+        if commit and self.kb:
+            entry = self.kb.get(gv_id)
+            if entry:
+                entry.content = commit.diff_after
+        return commit.to_dict() if commit else None
 
     # ── error rate estimation ────────────────────────────────
 

@@ -1,7 +1,7 @@
-# 🍈 kugua core · Agent 认知内核 v0.3.0
+# 🍈 kugua core · Agent 认知内核 v0.3.1
 
 > 一套被严格验证过的 "AI Agent 自我改进系统" 设计图纸 + 工程骨架。
-> 纯 Python stdlib，零外部依赖。~12,900 行，27 模块。
+> 纯 Python stdlib，零外部依赖。~14,500 行，30 模块。
 
 ---
 
@@ -27,10 +27,12 @@ kugua core (内核层)    ← 27 模块，纯 stdlib，硬约束
 | 子系统 | 模块 | 功能 |
 |--------|------|------|
 | **状态机** | `states.py` `main_loop.py` | P0→P4 严格状态推进 + 崩溃恢复 |
-| **知识库** | `knowledge.py` `graph.py` | L0-L3 证据层级 + BM25 倒排索引 + GraphKB + 新陈代谢管道 |
-| **双环学习** | `double_loop.py` `mobius.py` | 单环(修行为)→双环(修规则) 莫比乌斯连续谱 + 自适应阈值 |
-| **对抗审计** 🆕 | `meta_reviewer.py` | 检察官/辩护律师/法官三角对抗 + 分歧树 + 共识稳定性检测 |
-| **临界慢化** | `critical_slowing.py` | Mann-Kendall + Fisher信息 + AR(1) 多元复合预警 |
+| **知识库** | `knowledge.py` `graph.py` | L0-L3 证据层级 + BM25 + GraphKB + 新陈代谢 + 蒸馏 |
+| **版本控制** 🆕 | `versioning.py` | Git-like 内容寻址版本 DAG + 回滚 + Blame |
+| **因果图谱** 🆕 | `causal_graph.py` | Pearl SCM 因果追溯 + 干预效应估计 + 混杂检测 |
+| **双环学习** | `double_loop.py` `mobius.py` | 单环→双环莫比乌斯连续谱 + 自适应阈值 + 版本记录 |
+| **对抗审计** | `meta_reviewer.py` | 检察官/辩护律师/法官三角对抗 + 分歧树 |
+| **临界慢化** | `critical_slowing.py` | Mann-Kendall + Fisher + AR(1) 多元预警 |
 | **安全** | `safety.py` `permission.py` | 5 级信任梯度 + Kill Switch |
 | **负熵** | `negentropy.py` | 五维健康仪表板 |
 | **执行器** | `executor.py` `api_server.py` | 多 Provider LLM 客户端 + REST API |
@@ -100,6 +102,63 @@ L4_COMMIT    → 完整双环，修改规则本身
 
 ---
 
+## 版本控制 (Git-like Knowledge Versioning) 🆕
+
+每次 DoubleLoop 提交的规则修改都像 Git Commit 一样记录：父版本哈希、语义 Diff、5-Whys 原因链、审计验证数据。基于 SHA-256 的内容寻址 Merkle DAG 确保不可篡改，支持回滚到任意历史版本。
+
+```python
+from kugua.versioning import KnowledgeCommit, VersionGraph
+
+vg = VersionGraph()
+vg.commit(KnowledgeCommit(
+    gv_id="guarantee_period", diff_before="6 months",
+    diff_after="extract from contract, default 6 months",
+    reason="Contract terms were being ignored",
+    five_whys=["Why 1: rule too rigid", ...]
+))
+vg.rollback("guarantee_period", target_hash)  # 精准回滚
+vg.log("guarantee_period")                    # 版本历史
+vg.blame("guarantee_period")                  # 每次修改溯源
+```
+
+---
+
+## 因果图谱 (Causal Graph) 🆕
+
+知识不再孤立存储——构建 Pearl 结构因果模型 (SCM)。A → CAUSES → B → CAUSES → C。当 C 出错时，沿因果链反向追溯精准定位根因，而非仅修改表面症状。
+
+```python
+from kugua.causal_graph import CausalGraph
+
+cg = CausalGraph()
+cg.add_causal_link("missing_validation", "incorrect_data",
+                   mechanism="未验证的输入进入系统", strength=0.9)
+cg.add_causal_link("incorrect_data", "financial_loss")
+
+cg.trace_root_cause("financial_loss")
+# → 根因: missing_validation (深度=3), 建议干预该节点
+
+cg.compute_intervention_effect("missing_validation", "financial_loss")
+# → P(effect | do(cause)) ≈ 0.504
+
+cg.detect_confounders()  # 发现混杂变量
+```
+
+---
+
+## 知识蒸馏 (Compaction Process) 🆕
+
+定期（如每 1000 次交互）运行蒸馏周期：将碎片化 L0/L1 经验聚类 → LLM 总结提炼为高层治理原则 (L3) → 删除冗余低层条目，防止知识库膨胀。参考 Hinton 知识蒸馏 + WSCL 睡眠巩固。
+
+```python
+kb.tick_interaction()              # 每次任务执行后
+if kb.should_compact(interval=1000):
+    stats = kb.compact(llm_client)
+    # → {clusters: 12, principles: 5, pruned: 87}
+```
+
+---
+
 ## 多语言支持
 
 通过 `KUGUA_LANG` 环境变量切换：`zh-CN` (简体) | `zh-TW` (繁体) | `en` (英语) | `ja` (日语)
@@ -164,6 +223,8 @@ kugua/
 │   ├── mobius.py           # 莫比乌斯连续谱 + 自适应阈值 🆕
 │   ├── meta_reviewer.py    # 对抗审计 + 分歧树 + 稳定性检测 🆕
 │   ├── critical_slowing.py # 多元 CSD 预警 (τ+FI+AR1) 🆕
+│   ├── versioning.py       # Git-like 知识版本控制 🆕
+│   ├── causal_graph.py     # Pearl SCM 因果图谱 🆕
 │   ├── executor.py         # 多 Provider LLM 客户端
 │   ├── observer.py         # FreshObserver 幻觉免疫
 │   ├── safety.py           # SafetyManager + Kill Switch
@@ -182,13 +243,14 @@ kugua/
 ## 当前状态
 
 ```
-概念完整度  ████████░░  80%
-代码完整度  ████████░░  82%
-审计完整性  ████████░░  80%  🆕 三角对抗审计
-CSD 精度    ████████░░  75%  🆕 多元预警 (τ+FI+AR1)
-管道健康度  ██████░░░░  60%  🆕 新陈代谢管道 (L1→L2→L3)
+概念完整度  ████████░░  85%  🆕 版本控制 + 因果图 + 蒸馏
+代码完整度  ████████░░  85%  🆕 30 模块
+审计完整性  ████████░░  80%  三角对抗审计
+CSD 精度    ████████░░  75%  多元预警 (τ+FI+AR1)
+管道健康度  ████████░░  70%  🆕 新陈代谢 + 蒸馏管道
+版本可追溯  ██████████ 100%  🆕 Git-like 不可变版本链
 实验验证度  ███████░░░  70%
 生产就绪度  █░░░░░░░░░  10%
 ```
 
-**kugua 是一套被证明在实验条件下能自我改进的 Agent 认知架构。v0.3 优化了双环学习的核心瓶颈——方向感知触发、对抗性审计、自适应阈值、多元预警和新陈代谢管道——所有设计均经过物理·系统·数学三维交叉验证。**
+**kugua 是一套被证明在实验条件下能自我改进的 Agent 认知架构。v0.3.1 在 v0.3 的基础上新增了 Git-like 版本控制、Pearl SCM 因果图谱和知识蒸馏三项核心能力，使知识管理从"扁平存储"进化为"版本化 + 图谱化 + 蒸馏"的类生物基因管理模式。**
