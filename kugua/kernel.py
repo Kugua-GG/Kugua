@@ -126,6 +126,18 @@ class KuguaKernel:
         )
         self.ne_history.record(self.ne.to_dict())
 
+        # MainLoop (states + context only, executor optional)
+        self.main_loop = MainLoop(
+            config=self.cfg,
+            states=self.states_machine,
+            executor=None,  # set by init_llm if available
+            knowledge_base=self.kb,
+            double_loop=None,  # set by init_learning if available
+            mobius=None,
+            context=self.context,
+            safety=self.safety,
+        )
+
     # ═══════════════════════════════════════════════════════════
     # Stage 2: LLM (requires API keys)
     # ═══════════════════════════════════════════════════════════
@@ -184,7 +196,7 @@ class KuguaKernel:
     # ═══════════════════════════════════════════════════════════
 
     def init_runtime(self):
-        """Main loop. Negentropy already created in init_core — update with efficacy."""
+        """Wire executor + learning into main_loop. Negentropy updated with efficacy."""
         # Update negentropy with efficacy data now that learning is initialized
         if self.ne and self.efficacy:
             state_dict = (
@@ -195,17 +207,13 @@ class KuguaKernel:
             if self.ne_history:
                 self.ne_history.record(self.ne.to_dict())
 
-        self.main_loop = MainLoop(
-            config=self.cfg,
-            states=self.states_machine,
-            executor=self.executor,
-            knowledge_base=self.kb,
-            double_loop=self.double_loop,
-            mobius=self.mobius,
-            context=self.context,
-            safety=self.safety,
-            stagnation=self.executor.stagnation if self.executor else None,
-        )
+        # Update MainLoop with now-available subsystems
+        if self.main_loop:
+            self.main_loop.executor = self.executor
+            self.main_loop.double_loop = self.double_loop
+            self.main_loop.mobius = self.mobius
+            if self.executor:
+                self.main_loop.stagnation = self.executor.stagnation
 
     # ═══════════════════════════════════════════════════════════
     # Runtime
