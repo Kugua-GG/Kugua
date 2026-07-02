@@ -1,6 +1,6 @@
 """
 kugua — PermissionGate (independent permission control)
-v0.2.1
+v0.3.0
 
 Risk-level based operation gating with trust gradient.
 """

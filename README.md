@@ -1,4 +1,4 @@
-# 🍈 kugua core · Agent 认知内核 v0.2.1
+# 🍈 kugua core · Agent 认知内核 v0.3.0
 
 > 一套被严格验证过的 "AI Agent 自我改进系统" 设计图纸 + 工程骨架。
 > 纯 Python stdlib，零外部依赖。~9400 行，22 模块。

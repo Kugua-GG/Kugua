@@ -58,7 +58,7 @@ class TestKuguaKernelUninitialized(unittest.TestCase):
 
     def test_dashboard_empty(self):
         d = self.kernel.dashboard()
-        self.assertEqual(d["version"], "0.2.1")
+        self.assertEqual(d["version"], "0.3.0")
         # No subsystems initialized
         self.assertNotIn("kb", d)
 

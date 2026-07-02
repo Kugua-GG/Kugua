@@ -244,48 +244,95 @@ class DoubleLoopExecutor:
         self._error_counts[key] = self._error_counts.get(key, 0) + 1
         self._save_state()
 
-    def _evaluate_trigger(self, error_type: str, gv_id: str) -> Tuple[bool, str]:
+    def _evaluate_trigger(self, error_type: str, gv_id: str) -> Tuple[bool, str, Dict[str, Any]]:
         """Evaluate whether double-loop should trigger for this (error_type, gv_id).
 
         Checks in order:
           1. Mobius spectrum (continuous intensity-based trigger)
           2. Critical slowing detector (statistical trend)
-          3. Fallback error count (>= min_error_count)
+          3. Fallback error count (>= min_error_count) — with direction awareness
+
+        Direction-aware logic (3D cross-validated):
+          - tau > 0 AND p < 0.05 → CSD worsening: trigger (物理: 势阱变浅)
+          - tau < 0 AND p < 0.05 → CSD improving: SUPPRESS trigger (物理: 自组织修复)
+          - tau ≈ 0 OR p >= 0.05 → no statistical signal, fall back to count
 
         Returns:
-            (should_trigger: bool, reason: str)
+            (should_trigger: bool, reason: str, diagnostics: dict)
         """
+        diagnostics: Dict[str, Any] = {
+            "trigger_source": "",
+            "mobius_intensity": 0.0,
+            "csd_tau": 0.0,
+            "csd_p": 1.0,
+            "csd_critical": False,
+            "csd_improving": False,
+            "error_count": 0,
+            "suppressed": False,
+        }
+
         # 1. Mobius check
         if self.mobius is not None:
             try:
                 if self.mobius.should_trigger(gv_id, error_type):
                     intensity = self.mobius.get_intensity(gv_id, error_type)
+                    diagnostics["trigger_source"] = "MOBIUS"
+                    diagnostics["mobius_intensity"] = intensity
                     return True, (
                         f"MOBIUS: intensity={intensity:.3f} >= 0.85 threshold. "
                         f"Spectrum has reached L4_COMMIT."
-                    )
+                    ), diagnostics
             except Exception:
                 pass
 
-        # 2. CSD check
+        # 2. CSD check — with direction awareness
         if self.csd is not None:
             try:
                 signal = self.csd.detect(error_type, gv_id)
+                diagnostics["csd_tau"] = signal.kendall_tau
+                diagnostics["csd_p"] = signal.p_value
+                diagnostics["csd_critical"] = signal.critical
+
+                # Direction-aware: significant NEGATIVE tau = improving (governance is working)
+                if signal.significant and signal.kendall_tau < 0:
+                    diagnostics["csd_improving"] = True
+                    diagnostics["trigger_source"] = "CSD_IMPROVING"
+                    # Physical interpretation: potential well deepening → self-healing
+                    # Cybernetic: negative feedback is effective, no 2nd-order needed
+                    # Mathematical: significant monotonic DECREASE in recovery time
+                    key = f"{error_type}:{gv_id}"
+                    count = self._error_counts.get(key, 0)
+                    return False, (
+                        f"SUPPRESSED: recovery time significantly IMPROVING "
+                        f"(tau={signal.kendall_tau:.3f}, p={signal.p_value:.4f}). "
+                        f"Governance is working — no double-loop needed. "
+                        f"Errors={count}, but trend is downward."
+                    ), diagnostics
+
                 if signal.critical:
+                    diagnostics["trigger_source"] = "CSD"
                     return True, (
                         f"CSD: critical slowing detected. "
                         f"tau={signal.kendall_tau:.3f}, p={signal.p_value:.4f}"
-                    )
+                    ), diagnostics
             except Exception:
                 pass
 
         # 3. Fallback: error count
         key = f"{error_type}:{gv_id}"
         count = self._error_counts.get(key, 0)
-        if count >= self.min_error_count:
-            return True, f"FALLBACK: {count} errors >= {self.min_error_count} threshold"
+        diagnostics["error_count"] = count
 
-        return False, f"No trigger: mobius=False, csd=False, errors={count}/{self.min_error_count}"
+        if count >= self.min_error_count:
+            diagnostics["trigger_source"] = "FALLBACK"
+            return True, (
+                f"FALLBACK: {count} errors >= {self.min_error_count} threshold"
+            ), diagnostics
+
+        diagnostics["trigger_source"] = "NONE"
+        return False, (
+            f"No trigger: mobius=False, csd=False, errors={count}/{self.min_error_count}"
+        ), diagnostics
 
     # ── main execution cycle ─────────────────────────────────
 
@@ -314,12 +361,20 @@ class DoubleLoopExecutor:
         client = llm_client or self.llm_client
         event = DoubleLoopEvent(error_type=error_type, gv_id=gv_id)
 
-        # Phase 0: Evaluate trigger
-        should_trigger, reason = self._evaluate_trigger(error_type, gv_id)
+        # Phase 0: Evaluate trigger (direction-aware)
+        should_trigger, reason, diagnostics = self._evaluate_trigger(error_type, gv_id)
         event.trigger_signal = reason
+        # Store diagnostics for audit trail
+        event.audit_result["_trigger_diagnostics"] = diagnostics
         if not should_trigger:
             event.phase = "aborted"
             event.root_cause_summary = f"Trigger not met: {reason}"
+            # If suppressed due to improving trend, record as positive evidence
+            if diagnostics.get("csd_improving"):
+                event.root_cause_summary += (
+                    f" | Governance for '{gv_id}' is effective (recovery improving). "
+                    f"This is a POSITIVE signal — no rule change needed."
+                )
             self._events.append(event)
             self._save_state()
             return event
@@ -634,12 +689,15 @@ class DoubleLoopExecutor:
         llm_client: Optional[Any],
         model: Optional[str],
     ) -> DoubleLoopEvent:
-        """Perform blind audit of the proposed modification.
+        """Perform adversarial blind audit of the proposed modification.
 
-        Uses LLM to evaluate the modification from 3 perspectives:
-          - Correctness: does it fix the root cause?
-          - Safety: does it introduce new risks?
-          - Completeness: does it cover edge cases?
+        Uses the AdversarialAuditor (Prosecutor/Defender/Judge triangle) when
+        MetaReviewer is available, falling back to the legacy 3-perspective audit.
+
+        Three-dimensional cross-validation:
+          - 物理: 三体相互作用产生稳定轨道（两体 opinion dynamics 会塌缩到假共识）
+          - 系统: 三角反馈是最简二阶控制系统（对抗确保信息完备性）
+          - 数学: ≥2/3 裁决 ≈ 贝叶斯因子决策规则
         """
         audit = {
             "correctness": {"score": 0.5, "comment": ""},
@@ -648,8 +706,72 @@ class DoubleLoopExecutor:
             "overall_score": 0.5,
             "passed": False,
             "reviewer_count": 0,
+            "method": "legacy",
+            "divergence_tree": {},
         }
 
+        # ── Try adversarial audit via MetaReviewer ──
+        try:
+            from kugua.meta_reviewer import MetaReviewer, AdversarialAuditor
+
+            if llm_client is not None and hasattr(llm_client, "chat"):
+                # Create MetaReviewer and AdversarialAuditor
+                mr = MetaReviewer(llm_client=llm_client)
+                adversarial = AdversarialAuditor(
+                    llm_client=llm_client,
+                    meta_reviewer=mr,
+                )
+
+                adv_result = adversarial.audit(
+                    gv_content_before=event.gv_content_before,
+                    gv_content_after=event.gv_content_after,
+                    modification_reason=event.modification_reason,
+                    root_cause_summary=event.root_cause_summary,
+                    five_whys_chain=event.five_whys_chain,
+                    error_type=event.error_type,
+                )
+
+                # Map adversarial result to audit dict
+                audit["method"] = "adversarial"
+                audit["overall_score"] = adv_result.composite_score or (
+                    sum(v.confidence for v in adv_result.votes) / max(len(adv_result.votes), 1)
+                )
+                audit["passed"] = adv_result.passed
+                audit["reviewer_count"] = len(adv_result.votes)
+                audit["approve_count"] = adv_result.approve_count
+                audit["reject_count"] = adv_result.reject_count
+                audit["needs_revision_count"] = adv_result.needs_revision_count
+                audit["summary"] = adv_result.summary
+
+                # Attach divergence tree if available
+                if hasattr(adv_result, '_divergence_tree'):
+                    audit["divergence_tree"] = adv_result._divergence_tree.to_dict()
+
+                # Map individual votes to correctness/safety/completeness
+                if adv_result.votes:
+                    # Judge vote → overall
+                    judge = adv_result.votes[0]
+                    audit["correctness"]["score"] = judge.confidence
+                    audit["correctness"]["comment"] = judge.reasoning[:200]
+                    # If we have expert witness → safety
+                    if len(adv_result.votes) > 1:
+                        expert = adv_result.votes[1]
+                        audit["safety"]["score"] = expert.confidence
+                        audit["safety"]["comment"] = expert.reasoning[:200]
+                    # Meta-reviewer votes → completeness
+                    mr_votes = [v for v in adv_result.votes if v.template != "adversarial_judge" and v.template != "expert_witness"]
+                    if mr_votes:
+                        audit["completeness"]["score"] = sum(v.confidence for v in mr_votes) / len(mr_votes)
+                        audit["completeness"]["comment"] = "; ".join(v.reasoning[:100] for v in mr_votes)
+
+                event.audit_result = audit
+                return event
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # ── Fallback: Legacy 3-perspective audit ──
         if llm_client is not None and hasattr(llm_client, "chat"):
             perspectives = [
                 ("correctness", "Evaluate whether this modification correctly addresses the root cause."),
@@ -787,6 +909,15 @@ class DoubleLoopExecutor:
         event.phase = "rolled_back"
         event.committed = False
         event.gv_content_after = event.gv_content_before
+
+        # Record failed intervention in mobius for threshold calibration
+        if self.mobius is not None:
+            try:
+                self.mobius.record_intervention_outcome(
+                    event.gv_id, event.error_type, success=False
+                )
+            except Exception:
+                pass
 
         # Record reverted outcome if tracker available
         if self.efficacy is not None:

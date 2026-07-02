@@ -1,6 +1,6 @@
 """
 kugua — ContextCompressor + ObserverWeight
-v0.2.1
+v0.3.0
 
 ContextCompressor: reduces context inflation in the main model to lower hallucination rates.
 ObserverWeight: dynamic veto weight based on observer confidence and model tier ratio.

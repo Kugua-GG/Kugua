@@ -1,6 +1,6 @@
 """
 kugua — Tool registry (OpenAI function-calling compatible)
-v0.2.1
+v0.3.0
 """
 from __future__ import annotations
 from typing import Callable, Any

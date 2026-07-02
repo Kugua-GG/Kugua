@@ -1,6 +1,6 @@
 """
 kugua — KB-Graph Bridge
-v0.2.1
+v0.3.0
 
 Synchronizes KnowledgeBase (vertical, evidence) with GraphKB (horizontal, topology).
 When a KB entry is added/updated/removed, the bridge maintains corresponding graph nodes.

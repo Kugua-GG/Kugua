@@ -1,6 +1,6 @@
 """
 kugua — EV Log (external verification event log)
-v0.2.1
+v0.3.0
 
 Structured logging of checker scores per KB entry for downstream calibration.
 """

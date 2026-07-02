@@ -1003,6 +1003,193 @@ class KnowledgeBase:
                     )
         return conflicts
 
+    # ---- 知识新陈代谢 (v0.3) ----------------------------------------------------
+    # Wake-Sleep Consolidation Pipeline
+    #   Wake:  collect new L1 observations from recent tasks
+    #   Sleep: re-evaluate L3 entries, promote L1→L2→L3, downgrade stale
+    #   Dream: generate synthetic counterexamples for high-risk entries
+    # (3D cross-validated: WSCL睡眠巩固, Bayesian模型选择, 周期性V(C)自检)
+
+    def observe(
+        self,
+        key: str,
+        content: str,
+        context_id: str = "",
+        confidence: float = 0.5,
+        tags: Optional[List[str]] = None,
+    ) -> KBEntry:
+        """Record a new observation as an L1 entry.
+
+        This is the INTAKE gate for new knowledge. Observations start at L1
+        and accumulate evidence through the metabolism pipeline.
+
+        Args:
+            key: Unique identifier for this observation.
+            content: The observed knowledge.
+            context_id: Which context/task produced this observation.
+            confidence: Initial confidence [0, 1].
+            tags: Optional categorization tags.
+
+        Returns:
+            The created or updated KBEntry.
+        """
+        if key in self._entries:
+            entry = self._entries[key]
+            if context_id and context_id not in entry.verified_in:
+                entry.verified_in.append(context_id)
+                entry.usage_count += 1
+                # Accumulate evidence for promotion
+                if entry.usage_count >= 3 and entry.level == "L1":
+                    entry.level = "L2"
+                    entry.confidence = min(0.9, entry.confidence + 0.2)
+                elif entry.usage_count >= 10 and entry.level == "L2":
+                    entry.level = "L3"
+                    entry.confidence = min(1.0, entry.confidence + 0.1)
+            self._dirty = True
+            return entry
+
+        entry = KBEntry(
+            key=key,
+            content=content,
+            level="L1",
+            confidence=confidence,
+            verified_in=[context_id] if context_id else [],
+            tags=tags or [],
+            usage_count=1,
+        )
+        self.add(entry)
+        return entry
+
+    def metabolism_cycle(self, min_l1_age: int = 3) -> Dict[str, Any]:
+        """Run one full Wake-Sleep metabolism cycle.
+
+        Wake phase:  process pending L1 observations
+        Sleep phase: consolidate — promote, demote, validate axioms
+        Dream phase: identify high-risk entries needing counterexample testing
+
+        Inspired by WSCL (2024): Wake-Sleep Consolidated Learning.
+
+        Args:
+            min_l1_age: Minimum usage_count for L1→L2 promotion.
+
+        Returns:
+            Dict with cycle statistics.
+        """
+        stats = {
+            "promoted_l1_to_l2": 0,
+            "promoted_l2_to_l3": 0,
+            "demoted_l3_to_l2": 0,
+            "demoted_l2_to_l1": 0,
+            "deprecated": 0,
+            "garbage_collected": 0,
+            "high_risk_count": 0,
+            "axiom_validated": 0,
+            "axiom_challenged": 0,
+        }
+
+        # ── Wake Phase: Process L1 observations ──
+        l1_entries = [e for e in self._entries.values()
+                      if e.level == "L1" and e.status == "active"]
+        for entry in l1_entries:
+            if entry.usage_count >= min_l1_age and entry.fail_count == 0:
+                # Promote L1 → L2
+                entry.level = "L2"
+                entry.confidence = min(0.9, entry.confidence + 0.15)
+                stats["promoted_l1_to_l2"] += 1
+
+        # ── Sleep Phase: Re-evaluate L2/L3 entries ──
+        l2_entries = [e for e in self._entries.values()
+                      if e.level == "L2" and e.status == "active"]
+        for entry in l2_entries:
+            if entry.usage_count >= 10 and entry.fail_count == 0:
+                # Promote L2 → L3 (需要反例测试)
+                if not self._conflicts_with_any_axiom(entry):
+                    entry.level = "L3"
+                    entry.confidence = min(1.0, entry.confidence + 0.1)
+                    stats["promoted_l2_to_l3"] += 1
+            elif entry.fail_count >= 3:
+                # Demote L2 → L1
+                entry.level = "L1"
+                entry.confidence = max(0.1, entry.confidence - 0.3)
+                stats["demoted_l2_to_l1"] += 1
+
+        l3_entries = [e for e in self._entries.values()
+                      if e.level == "L3" and e.status == "active" and not e.is_constant]
+        for entry in l3_entries:
+            # Re-validate L3 axioms against accumulated counterexamples
+            if entry.fail_count >= 5:
+                # Demote L3 → L2
+                entry.level = "L2"
+                entry.confidence = max(0.2, entry.confidence - 0.3)
+                entry.status = "challenged"
+                stats["demoted_l3_to_l2"] += 1
+                stats["axiom_challenged"] += 1
+            elif self._conflicts_with_any_axiom(entry):
+                entry.status = "challenged"
+                stats["axiom_challenged"] += 1
+            else:
+                stats["axiom_validated"] += 1
+
+        # ── Dream Phase: Identify high-risk entries ──
+        # Entries with moderate confidence (0.5-0.7) and high usage need
+        # synthetic counterexample testing
+        high_risk = [
+            e for e in self._entries.values()
+            if e.status == "active"
+            and 0.3 <= e.confidence <= 0.7
+            and e.usage_count >= 5
+            and not e.is_constant
+        ]
+        stats["high_risk_count"] = len(high_risk)
+        for entry in high_risk:
+            entry.status = "challenged"  # Mark for counterexample testing
+
+        # ── Cleanup: garbage collect deprecated entries ──
+        self.expire_stale()
+        stats["garbage_collected"] = self.garbage_collect()
+
+        if any(v > 0 for v in stats.values()):
+            self._dirty = True
+
+        return stats
+
+    def get_pipeline_health(self) -> Dict[str, Any]:
+        """Get health metrics for the knowledge metabolism pipeline.
+
+        Healthy: L1 > L2 > L3 (pyramid structure).
+        Stagnant: all L3, no L1/L2 inflow (current kugua state).
+        """
+        by_level = {"L1": 0, "L2": 0, "L3": 0}
+        by_status = {"active": 0, "challenged": 0, "deprecated": 0, "invalid": 0}
+        for e in self._entries.values():
+            by_level[e.level] = by_level.get(e.level, 0) + 1
+            by_status[e.status] = by_status.get(e.status, 0) + 1
+
+        total = sum(by_level.values())
+        active = by_status["active"]
+
+        # Pyramid health: ideal is L1(60%) > L2(30%) > L3(10%)
+        pyramid_score = 0.0
+        if total > 0:
+            l1_ratio = by_level["L1"] / total
+            l2_ratio = by_level["L2"] / total
+            l3_ratio = by_level["L3"] / total
+            # Score: pyramid structure = descending ratios
+            if l1_ratio >= l2_ratio >= l3_ratio and l1_ratio > 0:
+                pyramid_score = min(1.0, (l1_ratio - l3_ratio) + 0.5)
+            else:
+                pyramid_score = max(0.0, l1_ratio + l2_ratio * 0.5)
+
+        return {
+            "total": total,
+            "active": active,
+            "by_level": by_level,
+            "by_status": by_status,
+            "pyramid_health": round(pyramid_score, 2),
+            "is_stagnant": by_level["L1"] == 0 and by_level["L2"] == 0 and by_level["L3"] > 0,
+            "needs_metabolism": by_level["L1"] > 0 or by_status["challenged"] > 0,
+        }
+
     # ---- 持久化 flush ----------------------------------------------------------
 
     def flush(self):

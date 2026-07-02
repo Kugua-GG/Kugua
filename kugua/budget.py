@@ -1,6 +1,6 @@
 """
 kugua — AdaptiveBudgetControl + RetryPolicy + TimeoutGuard
-v0.2.1
+v0.3.0
 """
 from __future__ import annotations
 import time

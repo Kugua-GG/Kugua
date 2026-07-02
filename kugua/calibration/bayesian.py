@@ -1,6 +1,6 @@
 """
 kugua — BayesianCalibrator
-v0.2.1
+v0.3.0
 
 Posterior calibration of confidence scores using external evidence (EV log).
 Maps checker scores to likelihoods and performs Bayesian updates.

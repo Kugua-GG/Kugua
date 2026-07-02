@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kugua"
-version = "0.2.1"
+version = "0.3.0"
 description = "苦瓜code — kugua core: Agent 认知内核·分层记忆·图知识库·安全门控·自监控·多语言(i18n)"
 readme = "README.md"
 license = {text = "MIT"}

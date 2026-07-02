@@ -51,7 +51,7 @@ if _lang != "zh-CN":
 from mcp.server.fastmcp import FastMCP
 
 _mcp_instructions = (
-    f"苦瓜code Agent 认知内核 v0.2.1 — "
+    f"苦瓜code Agent 认知内核 v0.3.0 — "
     f"知识库 · 双环学习 · 观察者门控 · 负熵仪表板 · 手动报错 · 多语言({', '.join(SUPPORTED_LANGS.keys())})"
 )
 mcp = FastMCP("kugua", instructions=_mcp_instructions)
@@ -114,10 +114,18 @@ def _get_eff():
     return k.efficacy if hasattr(k, 'efficacy') else k.eff
 
 def _get_observer():
+    """Get FreshObserver from kernel or create a safe fallback.
+
+    Returns a FreshObserver instance. If the kernel has a configured observer,
+    use it; otherwise create a no-LLM fallback that defaults to heuristic gating.
+    """
     k = _get_kernel()
-    return k.observer if hasattr(k, 'observer') else k.observer
-            _observer = FreshObserver(llm_client=None)
-    return _observer
+    if hasattr(k, 'observer') and k.observer is not None:
+        return k.observer
+    # Fallback: no-LLM observer for heuristic-only gating
+    from kugua.observer import FreshObserver
+    _fallback = FreshObserver(llm_client=None)
+    return _fallback
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -257,17 +265,55 @@ def double_loop_check(error_type: str = "", gv_id: str = "") -> str:
                 f"p={signal.p_value} (需 <0.05)"
             )
 
-    # 检查全部
+    # 检查全部 — with direction awareness
     signals = csd.detect_any()
     if not signals:
         return "✅ " + t("dlc.all_clear")
 
-    lines = [f"⚠️ {len(signals)} {t('dlc.triggered_title_plural')}:", ""]
+    # Separate improving vs worsening signals
+    worsening = []
+    improving = []
+    neutral = []
     for s in signals:
-        lines.append(
-            f"  {s.error_type}:{s.gv_id} | "
-            f"n={s.sample_count} | tau={s.kendall_tau} | p={s.p_value}"
-        )
+        if s.significant and s.kendall_tau < 0:
+            improving.append(s)
+        elif s.critical:
+            worsening.append(s)
+        else:
+            neutral.append(s)
+
+    lines = []
+    if worsening:
+        lines.append(f"🔴 {len(worsening)} {t('dlc.triggered_title_plural')} (恶化·需干预):")
+        for s in worsening:
+            lines.append(
+                f"  {s.error_type}:{s.gv_id} | "
+                f"n={s.sample_count} | tau={s.kendall_tau:.3f} | p={s.p_value:.4f} | "
+                f"趋势: ↑恶化 (势阱变浅·需双环干预)"
+            )
+        lines.append("")
+
+    if improving:
+        lines.append(f"🟢 {len(improving)} 个追踪对呈改善趋势 (治理生效·无需干预):")
+        for s in improving:
+            lines.append(
+                f"  {s.error_type}:{s.gv_id} | "
+                f"n={s.sample_count} | tau={s.kendall_tau:.3f} | p={s.p_value:.4f} | "
+                f"趋势: ↓改善 (势阱加深·自组织修复中)"
+            )
+        lines.append("")
+
+    if neutral:
+        lines.append(f"🟡 {len(neutral)} 个追踪对无显著趋势:")
+        for s in neutral:
+            lines.append(
+                f"  {s.error_type}:{s.gv_id} | "
+                f"n={s.sample_count} | tau={s.kendall_tau:.3f} | p={s.p_value:.4f}"
+            )
+
+    if not lines:
+        return "✅ " + t("dlc.all_clear")
+
     return "\n".join(lines)
 
 
@@ -405,6 +451,9 @@ def csd_status() -> str:
       — 意味着当前治理变量正在失效
       — 需要双环学习来修改规则本身
 
+    v0.3: 多元预警指数 — τ + Fisher信息 + AR(1) 三维交叉验证。
+    composite ≥ 0.67 → 高置信度临界信号。
+
     Returns:
         所有被追踪的 (error_type, gv_id) 对的临界慢化状态。
     """
@@ -413,31 +462,55 @@ def csd_status() -> str:
     if not csd._history:
         return t("csd_status.no_data")
 
-    lines = [t("csd_status.title") + ":", ""]
+    lines = [t("csd_status.title") + " (v0.3 多元预警):", ""]
 
     for key, records in sorted(csd._history.items()):
         error_type, gv_id = key.split(":", 1)
         signal = csd.detect(error_type, gv_id)
 
-        icon = "⚠️" if signal.critical else ("·" if signal.sample_count < 5 else "○")
-        status_label = t("csd_status.critical_label") if signal.critical else t("csd_status.normal_label")
+        # Direction-aware icon
+        if signal.critical:
+            icon = "🔴"
+            status_label = "临界·恶化·需干预"
+        elif signal.significant and signal.kendall_tau < 0:
+            icon = "🟢"
+            status_label = "改善·治理生效"
+        elif signal.composite_index >= 0.67:
+            icon = "🟠"
+            status_label = f"多元预警({signal.ews_dimensions}/3维)"
+        elif signal.sample_count < 5:
+            icon = "·"
+            status_label = "数据积累中"
+        else:
+            icon = "○"
+            status_label = "正常"
+
+        # Multivariate composite score
+        composite_str = f" | CSD={signal.composite_index:.2f}" if signal.sample_count >= 5 else ""
+        ews_str = f" | {signal.ews_summary}" if signal.ews_summary and signal.sample_count >= 5 else ""
+
         lines.append(
             f"  {icon} {error_type}:{gv_id} | "
             f"n={signal.sample_count} | "
-            f"tau={signal.kendall_tau} | "
-            f"p={signal.p_value} | "
-            f"{status_label}"
+            f"τ={signal.kendall_tau:.3f} | "
+            f"p={signal.p_value:.4f}{composite_str} | "
+            f"{status_label}{ews_str}"
         )
 
     critical_count = sum(1 for key in csd._history
                          if csd.detect(*key.split(":", 1)).critical)
+    composite_count = sum(1 for key in csd._history
+                          if csd.detect(*key.split(":", 1)).composite_index >= 0.67)
+
     lines.append(f"\n  {t('csd_status.summary', total=len(csd._history), critical=critical_count)}")
+    if composite_count > 0:
+        lines.append(f"  多元预警: {composite_count} 对达到 ≥0.67 复合阈值")
 
     return "\n".join(lines)
 
 
 # ═══════════════════════════════════════════════════════════════
-# 工具 7: record_error — 用户手动记录错误 🆕 v0.2.1
+# 工具 7: record_error — 用户手动记录错误 🆕 v0.3.0
 # ═══════════════════════════════════════════════════════════════
 
 @mcp.tool()
@@ -504,7 +577,7 @@ def record_error(error_type: str, gv_id: str = "", recovery_time_s: float = 1.0,
 
 
 # ═══════════════════════════════════════════════════════════════
-# 工具 8: status_all — 六项核心指标汇总 🆕 v0.2.1
+# 工具 8: status_all — 六项核心指标汇总 🆕 v0.3.0
 # ═══════════════════════════════════════════════════════════════
 
 @mcp.tool()

@@ -1,5 +1,5 @@
 """
-kugua core · i18n 多语言模块 v0.2.1
+kugua core · i18n 多语言模块 v0.3.0
 
 支持四语言:
   zh-CN — 简体中文 (默认)
@@ -10,7 +10,7 @@ kugua core · i18n 多语言模块 v0.2.1
 使用方式:
   from kugua.i18n import t, set_lang, get_lang, SUPPORTED_LANGS
   set_lang("en")
-  print(t("status_all.title"))  # → "kugua core v0.2.1 · Core Metrics"
+  print(t("status_all.title"))  # → "kugua core v0.3.0 · Core Metrics"
 
 环境变量:
   KUGUA_LANG=ja  → 日语
@@ -79,10 +79,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "ja":    "🍈 苦瓜code",
     },
     "common.version": {
-        "zh-CN": "v0.2.1",
-        "zh-TW": "v0.2.1",
-        "en":    "v0.2.1",
-        "ja":    "v0.2.1",
+        "zh-CN": "v0.3.0",
+        "zh-TW": "v0.3.0",
+        "en":    "v0.3.0",
+        "ja":    "v0.3.0",
     },
     "common.separator": {
         "zh-CN": "──────────────────────────────",
@@ -125,10 +125,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
 
     # ── status_all ───────────────────────────────────
     "status_all.title": {
-        "zh-CN": "kugua core v0.2.1 · 六项核心指标",
-        "zh-TW": "kugua core v0.2.1 · 六項核心指標",
-        "en":    "kugua core v0.2.1 · Core Metrics",
-        "ja":    "kugua core v0.2.1 · 六指標ダッシュボード",
+        "zh-CN": "kugua core v0.3.0 · 六项核心指标",
+        "zh-TW": "kugua core v0.3.0 · 六項核心指標",
+        "en":    "kugua core v0.3.0 · Core Metrics",
+        "ja":    "kugua core v0.3.0 · 六指標ダッシュボード",
     },
     "status_all.col_metric": {
         "zh-CN": "指标",
@@ -529,10 +529,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "ja":    "言語が設定されました: {lang}",
     },
     "install.starting": {
-        "zh-CN": "启动 Kugua MCP Server v0.2.1 (stdio)",
-        "zh-TW": "啟動 Kugua MCP Server v0.2.1 (stdio)",
-        "en":    "Starting Kugua MCP Server v0.2.1 (stdio)",
-        "ja":    "Kugua MCP Server v0.2.1 を起動中 (stdio)",
+        "zh-CN": "启动 Kugua MCP Server v0.3.0 (stdio)",
+        "zh-TW": "啟動 Kugua MCP Server v0.3.0 (stdio)",
+        "en":    "Starting Kugua MCP Server v0.3.0 (stdio)",
+        "ja":    "Kugua MCP Server v0.3.0 を起動中 (stdio)",
     },
     "install.artifacts_dir": {
         "zh-CN": "制品目录",

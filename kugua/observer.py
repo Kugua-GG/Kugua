@@ -1,6 +1,6 @@
 """
 kugua — FreshObserver (hallucination-immune gate)
-v0.2.1
+v0.3.0
 
 Independent LLM instance with minimal context. Each observation is stateless —
 the observer sees every decision point with fresh eyes, avoiding context-overload

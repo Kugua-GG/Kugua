@@ -380,22 +380,41 @@ class MobiusController:
     Manages multiple CorrectionSpectrum instances, one per (error_type, gv_id) pair.
     Provides persistence, dashboard, and integration hooks for DoubleLoopExecutor.
 
+    v0.3: Adaptive parameters — decay rate and trigger threshold are now dynamic,
+    calibrated from error severity and intervention efficacy history.
+    (3D cross-validated: 物理势阱深度, 系统V(C)多样性, 数学贝叶斯校准)
+
     Args:
         bias_weight: Base intensity increment per bias (default 0.15).
-        time_decay_gamma: Decay rate per day (default 7.0).
+        time_decay_gamma: Default decay rate per day (default 7.0). Can be overridden
+            per error_type via severity_gamma_map.
         artifact_dir: Directory for persisting state. If None, state is not auto-saved.
     """
+
+    # Severity-based decay rates (物理: 深势阱 → 慢衰减 → 长记忆)
+    # Higher severity = slower decay = longer memory
+    DEFAULT_SEVERITY_MAP: Dict[str, Dict[str, float]] = {
+        "compliance":    {"gamma": 3.0,  "threshold_boost": 0.05},   # 合规: 极慢衰减, 阈值更高
+        "safety":        {"gamma": 2.0,  "threshold_boost": 0.10},   # 安全: 最慢衰减, 阈值最高
+        "accuracy":      {"gamma": 7.0,  "threshold_boost": 0.0},    # 准确性: 默认
+        "completeness":  {"gamma": 7.0,  "threshold_boost": 0.0},    # 完整性: 默认
+        "logical_error": {"gamma": 5.0,  "threshold_boost": 0.0},    # 逻辑错误: 中等
+    }
 
     def __init__(
         self,
         bias_weight: float = 0.15,
         time_decay_gamma: float = 7.0,
         artifact_dir: Optional[Path] = None,
+        severity_map: Optional[Dict[str, Dict[str, float]]] = None,
     ):
         self.bias_weight = bias_weight
         self.time_decay_gamma = time_decay_gamma
         self.artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._spectra: Dict[str, CorrectionSpectrum] = {}
+        self._severity_map = severity_map or self.DEFAULT_SEVERITY_MAP
+        # Efficacy tracking for adaptive thresholds
+        self._intervention_history: Dict[str, Dict[str, int]] = {}  # key → {attempts, successes}
 
         if self.artifact_dir:
             self.artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -408,6 +427,103 @@ class MobiusController:
     def _split_key(self, key: str) -> Tuple[str, str]:
         parts = key.split(":", 1)
         return (parts[1], parts[0]) if len(parts) == 2 else ("", "")
+
+    # ── adaptive parameters (v0.3) ─────────────────────────────
+
+    def get_severity_gamma(self, error_type: str) -> float:
+        """Get severity-adjusted decay rate for an error type.
+
+        Physics: deeper potential well → slower relaxation → lower gamma.
+        High severity errors (compliance, safety) need long memory;
+        low severity errors (accuracy) decay faster.
+        """
+        severity = self._severity_map.get(error_type, {})
+        return severity.get("gamma", self.time_decay_gamma)
+
+    def get_severity_threshold_boost(self, error_type: str) -> float:
+        """Get severity-based threshold boost.
+
+        More critical error types get higher trigger thresholds —
+        we want to be more careful before modifying safety/compliance rules.
+        """
+        severity = self._severity_map.get(error_type, {})
+        return severity.get("threshold_boost", 0.0)
+
+    def get_adaptive_threshold(self, gv_id: str, error_type: str) -> float:
+        """Compute confidence-calibrated trigger threshold.
+
+        Mathematical: threshold = base + severity_boost - efficacy_bonus
+          - base = 0.85 (default)
+          - severity_boost: higher for critical error types
+          - efficacy_bonus: lower threshold when historical success rate is high
+
+        Cybernetic: like a PID controller's setpoint — adjusts based on
+        how well past interventions have worked.
+        """
+        base = LEVEL_L3_MAX  # 0.85
+        severity_boost = self.get_severity_threshold_boost(error_type)
+        efficacy_bonus = self._get_efficacy_bonus(gv_id, error_type)
+        return max(0.5, min(0.95, base + severity_boost - efficacy_bonus))
+
+    def _get_efficacy_bonus(self, gv_id: str, error_type: str) -> float:
+        """Calculate efficacy bonus: higher success rate → lower threshold.
+
+        Range: 0.0 (no history) to 0.15 (perfect success rate).
+        """
+        key = self._make_key(gv_id, error_type)
+        history = self._intervention_history.get(key, {})
+        attempts = history.get("attempts", 0)
+        successes = history.get("successes", 0)
+        if attempts == 0:
+            return 0.0
+        success_rate = successes / attempts
+        # Bonus scale: max 0.15 reduction at 100% success rate
+        return 0.15 * success_rate
+
+    def record_intervention_outcome(self, gv_id: str, error_type: str, success: bool) -> None:
+        """Record outcome of a double-loop intervention for efficacy calibration.
+
+        Called after commit or rollback to update the efficacy history.
+        """
+        key = self._make_key(gv_id, error_type)
+        if key not in self._intervention_history:
+            self._intervention_history[key] = {"attempts": 0, "successes": 0}
+        self._intervention_history[key]["attempts"] += 1
+        if success:
+            self._intervention_history[key]["successes"] += 1
+
+    def get_diversity_index(self) -> float:
+        """Compute controller diversity V(C) — Ashby's requisite variety metric.
+
+        Cybernetic: V(C) must ≥ V(E) for effective control.
+        Diversity = unique (error_type × location) combinations across all spectra.
+
+        Returns:
+            Shannon entropy of the bias distribution across error locations.
+            Higher = more diverse controller response repertoire.
+        """
+        import math
+        location_counts: Dict[str, int] = {}
+        total = 0
+        for spectrum in self._spectra.values():
+            for bias in spectrum.biases:
+                key = f"{bias.error_type}@{bias.error_location}"
+                location_counts[key] = location_counts.get(key, 0) + 1
+                total += 1
+
+        if total == 0:
+            return 0.0
+
+        # Shannon entropy of the distribution
+        entropy = 0.0
+        for count in location_counts.values():
+            p = count / total
+            entropy -= p * math.log(p)
+        # Normalize by log(N) for a [0, 1] index
+        n_unique = len(location_counts)
+        if n_unique <= 1:
+            return 0.0
+        return entropy / math.log(n_unique)
 
     def get_or_create_spectrum(self, gv_id: str, error_type: str) -> CorrectionSpectrum:
         """Get existing spectrum or create a new one for the given pair."""
@@ -440,9 +556,14 @@ class MobiusController:
         """Record a correction bias, updating the relevant spectrum.
 
         Creates a new spectrum if one doesn't exist for this (error_type, gv_id).
+        Uses severity-adjusted gamma for new spectra.
         Auto-saves state if artifact_dir is configured.
         """
         spectrum = self.get_or_create_spectrum(bias.gv_id, bias.error_type)
+        # Apply severity-adjusted decay rate
+        severity_gamma = self.get_severity_gamma(bias.error_type)
+        if spectrum.time_decay_gamma != severity_gamma:
+            spectrum.time_decay_gamma = severity_gamma
         spectrum.add_bias(bias)
         if self.artifact_dir:
             self.save_state()
@@ -450,12 +571,17 @@ class MobiusController:
     # ── trigger checks ───────────────────────────────────────
 
     def should_trigger(self, gv_id: str, error_type: str) -> bool:
-        """Check if the spectrum for this pair has reached the commit threshold."""
+        """Check if the spectrum for this pair has reached the adaptive commit threshold.
+
+        Uses confidence-calibrated threshold: lower threshold when past interventions
+        were successful, higher threshold for safety-critical error types.
+        """
         spectrum = self.get_spectrum(gv_id, error_type)
         if spectrum is None:
             return False
         spectrum.apply_decay()
-        return spectrum.should_trigger_double_loop
+        threshold = self.get_adaptive_threshold(gv_id, error_type)
+        return spectrum.intensity >= threshold
 
     def get_twist_info(self, gv_id: str, error_type: str) -> Dict[str, Any]:
         """Get twist point information for a given (gv_id, error_type) pair.
@@ -542,10 +668,15 @@ class MobiusController:
         return hints
 
     def commit_and_reset(self, gv_id: str, error_type: str) -> None:
-        """Reset a spectrum after a successful double-loop commit."""
+        """Reset a spectrum after a successful double-loop commit.
+
+        Records the successful intervention for adaptive threshold calibration.
+        """
         spectrum = self.get_spectrum(gv_id, error_type)
         if spectrum:
             spectrum.reset()
+        # Record successful intervention
+        self.record_intervention_outcome(gv_id, error_type, success=True)
         if self.artifact_dir:
             self.save_state()
 

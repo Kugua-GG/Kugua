@@ -1,5 +1,5 @@
 """
-kugua — AI Agent 认知内核 v0.2.1（kugua core）
+kugua — AI Agent 认知内核 v0.3.0（kugua core）
 
 三层架构：
   指令层 (CLAUDE.md)  →  桥接层 (kugua MCP)  →  内核层 (本包)
@@ -30,7 +30,7 @@ kugua — AI Agent 认知内核 v0.2.1（kugua core）
     executor = TaskExecutor(client, cfg)
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 # ── 安全导入辅助 ──────────────────────────────────────────
 import warnings as _warnings
@@ -54,7 +54,7 @@ def _safe_import(name: str, message: str = "") -> _Optional[_Any]:
 
 from kugua.config import KuguaConfig
 
-# ── i18n 多语言 🆕 v0.2.1 ──────────────────────────────
+# ── i18n 多语言 🆕 v0.3.0 ──────────────────────────────
 from kugua.i18n import (
     t, set_lang, get_lang, list_langs, SUPPORTED_LANGS, get_all_strings_for_lang
 )
@@ -494,7 +494,7 @@ def init_full() -> dict:
 
 
 # ═════════════════════════════════════════════════════════════
-# 统一状态摘要 🆕 v0.2.1
+# 统一状态摘要 🆕 v0.3.0
 # ═════════════════════════════════════════════════════════════
 
 def get_dashboard_summary(config: "KuguaConfig | None" = None) -> dict:

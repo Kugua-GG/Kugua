@@ -1,6 +1,6 @@
 """
 kugua — Graph Laplacian Confidence Diffusion
-v0.2.1
+v0.3.0
 
 Propagates confidence scores through the GraphKB via random-walk Laplacian.
 Used for: spreading verification evidence along causal/similarity edges.

@@ -244,7 +244,7 @@ class KuguaKernel:
     def dashboard(self) -> Dict[str, Any]:
         """Return comprehensive kernel status across all subsystems."""
         d: Dict[str, Any] = {
-            "version": "0.2.1",
+            "version": "0.3.0",
             "config": {
                 "has_providers": self.cfg.has_providers if self.cfg else False,
             },

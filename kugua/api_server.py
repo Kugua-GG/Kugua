@@ -1,6 +1,6 @@
 """
 kugua — API Server (REST wrapper for kugua kernel)
-v0.2.1
+v0.3.0
 
 Lightweight HTTP API for external monitoring and task submission.
 Used by EcosystemMonitor for independent verification experiments.
