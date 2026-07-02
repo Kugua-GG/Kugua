@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# kugua artifacts (generated state, not source)
+.codex/
+*.jsonl
+!kugua/constants.jsonl
+agent_state.json
+csd_state.json
+double_loop_state.json
+efficacy_state.json
+negentropy_history.jsonl
+
+# Bytecode
+*.pyc
+*.pyo

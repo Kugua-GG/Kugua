@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kugua"
+version = "0.2.1"
+description = "苦瓜code — kugua core: Agent 认知内核·分层记忆·图知识库·安全门控·自监控·多语言(i18n)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "苦瓜code contributors"}]
+keywords = ["agent", "ai", "llm", "multi-agent", "cognitive-architecture", "knowledge-graph", "i18n", "multilingual"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/kugua-code/kugua-core"
+Repository = "https://github.com/kugua-code/kugua-core.git"
+
+[project.scripts]
+kugua-worker = "cli.worker:main"
+kugua-checker = "cli.checker:main"
+
+[project.optional-dependencies]
+# 可选：Excel 报表生成（openpyxl 或 xlsxwriter）
+xlsx = ["openpyxl>=3.0"]
+
+[tool.setuptools.packages.find]
+include = ["kugua*", "cli*"]
